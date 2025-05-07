@@ -1,19 +1,29 @@
 body {
-  font-family: Arial, sans-serif;
   margin: 0;
-  padding: 0;
+  font-family: sans-serif;
   text-align: center;
+  background-color: #f8f8f8;
 }
 
 h1 {
-  margin: 10px 0;
+  margin: 10px;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 #map {
-  height: 80vh;
+  height: 85vh;
   width: 100%;
+  border-top: 2px solid #333;
 }
 
-#path {
-  margin-top: 10px;
+#status {
+  margin: 5px;
+  font-weight: bold;
 }

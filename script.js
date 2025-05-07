@@ -1,67 +1,117 @@
-let map = L.map('map').setView([51.505, -0.09], 13);
-let startNode = null;
-let endNode = null;
-let polyline = null;
-let graphData = null;
+import { dijkstraAnimated, dijkstraInstant } from './dijkstra.js';
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+const map = L.map('map').setView([37.19, 28.36], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-async function loadGraph() {
-  const response = await fetch('graph-data.json');
-  graphData = await response.json();
+let nodes = {}, edges = {}, selectedPoints = [];
+let markers = [], visitedMarkers = [], currentPolyline = null;
 
-  for (const node in graphData.coordinates) {
-    const coord = graphData.coordinates[node];
-    const marker = L.circleMarker(coord, { radius: 6, color: 'blue' }).addTo(map);
-    marker.bindTooltip(node);
-    marker.on('click', () => onNodeClick(node));
-  }
+const stepModeCheckbox = document.getElementById("stepMode");
+const speedInput = document.getElementById("speedRange");
+const speedLabel = document.getElementById("speedValue");
+const statusText = document.getElementById("status");
 
-  updateInfo("2 nokta seç");
+speedInput.addEventListener("input", () => {
+  speedLabel.textContent = `${getSpeed()} ms`;
+});
+
+function getSpeed() {
+  const val = Number(speedInput.value);
+  return 1010 - val;
 }
 
-function onNodeClick(nodeId) {
-  if (!startNode) {
-    startNode = nodeId;
-  } else if (!endNode && nodeId !== startNode) {
-    endNode = nodeId;
-    const result = dijkstra(graphData, startNode, endNode);
+fetch("roads.json")
+  .then(res => res.json())
+  .then(data => {
+    nodes = data.nodes;
+    edges = data.edges;
+    statusText.textContent = "Haritadan iki nokta seçin.";
+  });
 
-    if (result.path.length > 0) {
-      drawPath(result.path);
-      updateInfo(`En kısa yol: ${result.path.join(" → ")} (Mesafe: ${result.distance})`);
+map.on('click', async function (e) {
+  if (selectedPoints.length === 2) {
+    selectedPoints = [];
+    markers.forEach(m => map.removeLayer(m));
+    visitedMarkers.forEach(m => map.removeLayer(m));
+    if (currentPolyline) map.removeLayer(currentPolyline);
+    markers = [];
+    visitedMarkers = [];
+    currentPolyline = null;
+    statusText.textContent = "Haritadan iki nokta seçin.";
+  }
+
+  const marker = L.marker(e.latlng).addTo(map);
+  markers.push(marker);
+  selectedPoints.push(e.latlng);
+
+  if (selectedPoints.length === 2) {
+    const startId = findNearestNode(selectedPoints[0]);
+    const endId = findNearestNode(selectedPoints[1]);
+    let path;
+    let stop = false;
+
+    if (stepModeCheckbox.checked) {
+      const delay = getSpeed();
+      path = await dijkstraAnimated(edges, startId, endId, showVisit, delay, () => stop);
     } else {
-      updateInfo("Yol yok.");
+      path = dijkstraInstant(edges, startId, endId);
     }
-  } else {
-    resetSelection();
-    onNodeClick(nodeId);
+
+    stop = true;
+
+    if (!path) {
+      alert("Yol bulunamadı.");
+      return;
+    }
+
+    const latlngs = path.map(id => nodes[id]);
+    currentPolyline = L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(map);
+
+    let totalDistance = 0;
+    for (let i = 0; i < latlngs.length - 1; i++) {
+      totalDistance += getDistance(latlngs[i], latlngs[i + 1]);
+    }
+    statusText.textContent = `Rota bulundu. Toplam mesafe: ${(totalDistance / 1000).toFixed(2)} km`;
   }
-}
+});
 
-function drawPath(path) {
-  if (polyline) map.removeLayer(polyline);
+function findNearestNode(latlng) {
+  let minDist = Infinity;
+  let nearestId = null;
+  const point = [latlng.lat, latlng.lng];
 
-  const coords = path.map(n => graphData.coordinates[n]);
-  polyline = L.polyline(coords, { color: 'red' }).addTo(map);
-  map.fitBounds(polyline.getBounds());
-}
-
-function resetSelection() {
-  startNode = null;
-  endNode = null;
-  if (polyline) {
-    map.removeLayer(polyline);
-    polyline = null;
+  for (let id in nodes) {
+    const dist = getDistance(point, nodes[id]);
+    if (dist < minDist) {
+      minDist = dist;
+      nearestId = id;
+    }
   }
-  updateInfo("2 nokta seç");
+
+  return nearestId;
 }
 
-function updateInfo(text) {
-  const infoDiv = document.getElementById("info");
-  if (infoDiv) infoDiv.innerText = text;
+function getDistance(a, b) {
+  const R = 6371e3;
+  const φ1 = a[0] * Math.PI / 180;
+  const φ2 = b[0] * Math.PI / 180;
+  const Δφ = (b[0] - a[0]) * Math.PI / 180;
+  const Δλ = (b[1] - a[1]) * Math.PI / 180;
+
+  const h = Math.sin(Δφ / 2) ** 2 +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-loadGraph();
+function showVisit(nodeId) {
+  const [lat, lon] = nodes[nodeId];
+  const marker = L.circleMarker([lat, lon], {
+    radius: 4,
+    color: 'orange',
+    fillColor: 'orange',
+    fillOpacity: 0.6
+  }).addTo(map);
+  visitedMarkers.push(marker);
+}

@@ -2,18 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Smart Route Navigator</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
-  <h1>Chose 2 point</h1>
-  <div id="map" style="height: 600px;"></div>
-  <div id="info" style="margin-top: 10px; font-weight: bold;"></div>
+  <h1>Smart Route Navigator</h1>
+
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="stepMode" />
+      Adım adım göster
+    </label>
+
+    <label>
+      Hız:
+      <input type="range" id="speedRange" min="10" max="1000" value="500" step="10" />
+      <span id="speedValue">550</span>
+    </label>
+  </div>
+
+  <p id="status">Haritadan iki nokta seçin.</p>
+  <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="dijkstra.js"></script>
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
